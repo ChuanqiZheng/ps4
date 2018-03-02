@@ -1,8 +1,6 @@
-# ps4
+# Assignments_EECS476
+2018 Spring EECS 476
 
-Your description goes here
+This package includes source code for assignment 4.
 
-## Example usage
 
-## Running tests/demos
-    

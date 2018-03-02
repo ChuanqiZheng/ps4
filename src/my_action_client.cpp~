@@ -12,7 +12,10 @@
 #include <nav_msgs/Path.h>
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <std_msgs/Bool.h>
+#include <geometry_msgs/Twist.h>
 using namespace std;
+bool g_lidar_alarm=false; 
 
 geometry_msgs::Quaternion convertPlanarPhi2Quaternion(double phi) {
     geometry_msgs::Quaternion quaternion;
@@ -29,7 +32,7 @@ int g_fdbk = -1;
 
 // This function will be called once when the goal completes
 // this is optional, but it is a convenient way to get access to the "result" message sent by the server
-void doneCb(const actionlib::SimpleClientGoalState& state,
+/*void doneCb(const actionlib::SimpleClientGoalState& state,
         const ps4::ps4ResultConstPtr& result) {
     ROS_INFO(" doneCb: server responded with state [%s]", state.toString().c_str());
     //ROS_INFO("got result output = %d",result->output);
@@ -50,13 +53,25 @@ void activeCb()
   ROS_INFO("Goal just went active");
   g_goal_active=true; //let main() know that the server responded that this goal is in process
 }
+*/
+void alarmCallback(const std_msgs::Bool& alarm_msg) 
+{ 
+  g_lidar_alarm = alarm_msg.data; //make the alarm status global, so main() can use it
+  if (g_lidar_alarm) {
+     ROS_INFO("LIDAR alarm received!"); 
+  }
+}
 
 int main(int argc, char** argv) {
         ros::init(argc, argv, "my_action_client_node"); // name this node 
         ros::NodeHandle n;
         ros::Rate main_timer(1.0);
         // here is a "goal" object compatible with the server, as defined in example_action_server/action
+        ros::Subscriber alarm_subscriber = n.subscribe("lidar_alarm",1,alarmCallback);
         ps4::ps4Goal goal; 
+        ps4::ps4Goal goal2; 
+        double sample_dt = 0.01;
+        ros::Rate loop_timer(1/sample_dt);
         
         // use the name of our server, which is: timer_action (named in example_action_server_w_fdbk.cpp)
         // the "true" argument says that we want our new client to run as a separate thread (a good idea)
@@ -109,19 +124,43 @@ int main(int argc, char** argv) {
     goal.nav_path.poses.push_back(pose_stamped);
 
     pose_stamped.pose.position.x=2.0; 
-    pose_stamped.pose.position.y=5.5; 
+    pose_stamped.pose.position.y=5.4; 
     goal.nav_path.poses.push_back(pose_stamped);
 
-    pose_stamped.pose.position.x=0.0; 
+    pose_stamped.pose.position.x=0.2; 
     pose_stamped.pose.position.y=7.0; 
     goal.nav_path.poses.push_back(pose_stamped);
 
-    pose_stamped.pose.position.x=-0.5; 
+    pose_stamped.pose.position.x= 0.5; 
     pose_stamped.pose.position.y=11.5; 
     goal.nav_path.poses.push_back(pose_stamped);
 
     action_client.sendGoal(goal); 
 
+    while(1)
+    {
+      ros::spinOnce();
+      if(g_lidar_alarm)
+      {
+        pose.position.x = 0.5; // say desired x-coord is 1
+        pose.position.y = 11.8;
+        pose.position.z = 0.0; // let's hope so!
+        pose.orientation.x = 0.0; //always, for motion in horizontal plane
+        pose.orientation.y = 0.0; // ditto
+        pose.orientation.z = 0.0; // implies oriented at yaw=0, i.e. along x axis
+        pose.orientation.w = 1.0; //sum of squares of all components of unit quaternion is 1
+        pose_stamped.pose = pose;
+        goal2.nav_path.poses.push_back(pose_stamped);
+
+        pose_stamped.pose.position.x= 3.5; 
+        pose_stamped.pose.position.y= 12.2; 
+        goal2.nav_path.poses.push_back(pose_stamped);
+
+        action_client.sendGoal(goal2);
+        break;
+      }
+      loop_timer.sleep();
+    }
 
 
            //action_client.sendGoal(goal,&doneCb); // send goal and specify a callback function
